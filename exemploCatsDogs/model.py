@@ -12,6 +12,7 @@ from PIL import Image
 print("Tensorflow: v{}".format(tf.__version__))
 # %matplotlib inline
 
+# Carrega uma imagem
 def load(f, label):
     # load the file into tensor
     image = tf.io.read_file(f)
@@ -22,20 +23,25 @@ def load(f, label):
     
     return image, label
 
+# Redimensiona a imagem
 def resize(input_image, size):
     return tf.image.resize(input_image, size)
 
+# Corta a imagem
 def random_crop(input_image):
     return tf.image.random_crop(input_image, size=[150, 150, 3])
 
+# Corta a imagem ne centro
 def central_crop(input_image):
     image = resize(input_image, [176, 176])
     return tf.image.central_crop(image, central_fraction=0.84)
 
+# Rotaciona a imagem
 def random_rotation(input_image):
     angles = np.random.randint(0, 3, 1)
     return tf.image.rot90(input_image, k=angles[0])
 
+# Aplica jitter na imagem
 def random_jitter(input_image):
     # Resize it to 176 x 176 x 3
     image = resize(input_image, [176, 176])
@@ -47,17 +53,20 @@ def random_jitter(input_image):
     image = tf.image.random_flip_left_right(image)
     return image
 
+# Normaliza a imagem
 def normalize(input_image):
     mid = (tf.reduce_max(input_image) + tf.reduce_min(input_image)) / 2
     input_image = input_image / mid - 1
     return input_image
 
+# Carrega as imagens de treinamento
 def load_image_train(image_file, label):
     image, label = load(image_file, label)
     image = random_jitter(image)
     image = normalize(image)
     return image, label
 
+# Carrega as imagens de validação
 def load_image_val(image_file, label):
     image, label = load(image_file, label)
     image = central_crop(image)
