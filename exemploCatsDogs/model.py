@@ -13,22 +13,11 @@ print("Tensorflow: v{}".format(tf.__version__))
 # %matplotlib inline
 
 def load(f, label):
-    # Load the file into tensor
+    # load the file into tensor
     image = tf.io.read_file(f)
-    
-    # Try to decode as JPEG
-    try:
-        image = tf.image.decode_jpeg(image)
-    except tf.errors.InvalidArgumentError:
-        try:
-            # If decoding fails, try decoding as BMP
-            image = tf.image.decode_bmp(image)
-            print(f"Image {f} decoded as BMP.")
-        except tf.errors.InvalidArgumentError:
-            print(f"Unsupported image format for {f}")
-            return None, label
-    
-    # Convert to tf.float32
+    # Decode it to JPEG format
+    image = tf.image.decode_jpeg(image)
+    # Convert it to tf.float32
     image = tf.cast(image, tf.float32)
     
     return image, label
