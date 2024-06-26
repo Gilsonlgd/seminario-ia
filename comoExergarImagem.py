@@ -7,7 +7,7 @@ from skimage.transform import resize
 from skimage.color import rgb2gray
 
 # Carrega a imagem e transforma para gray scale
-image = imread('./images/digits/sample_1_pincel_digit.png')
+image = imread('./images/digits/sample_1_digit.png')
 image = rgb2gray(image)
 
 # Redimensiona a imagem para 28x28 pixels
