@@ -123,6 +123,7 @@ test_len = len(glob(os.path.join('./dataset/my_cat_dog', 'test', 'cat', '*.jpg')
 
 print(train_len, val_len, test_len)
 
+# Exibir uma parte das imagens
 for images, labels in train_ds.take(1):
     fig, ax = plt.subplots(1, 10, figsize=(20, 6))
     for j in range(10):
@@ -134,6 +135,7 @@ for images, labels in train_ds.take(1):
 plt.show()
 
 
+# Cria a camada de convolução customizada
 class Conv(tf.keras.Model):
     def __init__(self, filters, kernel_size):
         super(Conv, self).__init__()
@@ -149,9 +151,9 @@ class Conv(tf.keras.Model):
         x = self.relu(x)
         x = self.pool(x)
         return x
-    
-model = tf.keras.Sequential(name='Cat_Dog_CNN')
 
+# Cria o modelo   
+model = tf.keras.Sequential(name='Cat_Dog_CNN')
 model.add(Conv(filters=32, kernel_size=(3, 3)))
 model.add(Conv(filters=64, kernel_size=(3, 3)))
 model.add(Conv(filters=128, kernel_size=(3, 3)))
@@ -161,6 +163,7 @@ model.add(tf.keras.layers.Dense(units=512, activation=tf.keras.activations.relu)
 model.add(tf.keras.layers.Dense(units=2, activation=tf.keras.activations.softmax))
 
 
+# Cria o callback para salvar os pesos
 checkpoint_path = "./train/cat_dog_cnn/cp-{epoch:04d}.weights.h5"
 checkpoint_dir = os.path.dirname(checkpoint_path)
 
