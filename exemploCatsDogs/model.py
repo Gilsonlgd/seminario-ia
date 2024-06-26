@@ -11,33 +11,27 @@ from PIL import Image
 
 print("Tensorflow: v{}".format(tf.__version__))
 # %matplotlib inline
-IMAGE_SIZE = (150, 150)
 
-def load(file_path, label):
-    # Load the raw data from the file as a string
-    img = tf.io.read_file(file_path)
-    # Decode the image as JPEG format
-    img = tf.image.decode_image(img, channels=3)
-    # Resize the image to the desired size
-    img.set_shape([None, None, 3]) 
-    img = tf.image.resize(img, IMAGE_SIZE)
-    # Convert the image to float32 type
-    img = tf.cast(img, tf.float32)
-    # Normalize the pixel values to the range [0, 1]
-    img = img / 255.0
-    return img, label
-
-def filter_invalid_images(file_path, label):
-    # Check if the image can be decoded correctly
+def load(f, label):
+    # Load the file into tensor
+    image = tf.io.read_file(f)
+    
+    # Try to decode as JPEG
     try:
-        img = tf.io.read_file(file_path)
-        img = tf.image.decode_jpeg(img, channels=3)
-        return True
-    except:
-        return False
-
-def filter_invalid_images(image, label):
-    return tf.not_equal(label, -1)
+        image = tf.image.decode_jpeg(image)
+    except tf.errors.InvalidArgumentError:
+        try:
+            # If decoding fails, try decoding as BMP
+            image = tf.image.decode_bmp(image)
+            print(f"Image {f} decoded as BMP.")
+        except tf.errors.InvalidArgumentError:
+            print(f"Unsupported image format for {f}")
+            return None, label
+    
+    # Convert to tf.float32
+    image = tf.cast(image, tf.float32)
+    
+    return image, label
 
 def resize(input_image, size):
     return tf.image.resize(input_image, size)
@@ -69,45 +63,77 @@ def normalize(input_image):
     input_image = input_image / mid - 1
     return input_image
 
+def load_image_train(image_file, label):
+    image, label = load(image_file, label)
+    image = random_jitter(image)
+    image = normalize(image)
+    return image, label
 
-temp_ds = tf.data.Dataset.list_files(os.path.join('../datasets/pet-images/Cat', '*.jpg'))
+def load_image_val(image_file, label):
+    image, label = load(image_file, label)
+    image = central_crop(image)
+    image = normalize(image)
+    return image, label
+
+# Carrega os dados de treinamento
+temp_ds = tf.data.Dataset.list_files(os.path.join('./dataset/my_cat_dog', 'train', 'cat', '*.jpg'))
 temp_ds = temp_ds.map(lambda x: (x, 0))
 
-temp2_ds = tf.data.Dataset.list_files(os.path.join('../datasets/pet-images/Dog', '*.jpg'))
+temp2_ds = tf.data.Dataset.list_files(os.path.join('./dataset/my_cat_dog', 'train', 'dog', '*.jpg'))
 temp2_ds = temp2_ds.map(lambda x: (x, 1))
 
-# separa em treinamento, validação e teste
-train_size = int(0.7 * 2000)
-val_size = int(0.15 * 2000)
-test_size = int(0.15 * 2000)
-
-train_ds = temp_ds.take(train_size)
-val_ds = temp_ds.skip(train_size).take(val_size)
-test_ds = temp_ds.skip(train_size + val_size).take(test_size)
-
-train_ds = train_ds.concatenate(temp2_ds.take(train_size))
-val_ds = val_ds.concatenate(temp2_ds.skip(train_size).take(val_size))
-test_ds = test_ds.concatenate(temp2_ds.skip(train_size + val_size).take(test_size))
+train_ds = temp_ds.concatenate(temp2_ds)
 
 # Embaralha os dados de treinamento
 buffer_size = tf.data.experimental.cardinality(train_ds).numpy()
 train_ds = train_ds.shuffle(buffer_size)\
-                   .map(load, num_parallel_calls=tf.data.experimental.AUTOTUNE)\
-                   .filter(filter_invalid_images)\
+                   .map(load_image_train, num_parallel_calls=16)\
                    .batch(20)\
                    .repeat()
 
+# Carrega os dados de validação
+temp_ds = tf.data.Dataset.list_files(os.path.join('./dataset/my_cat_dog/', 'val', 'cat', '*.jpg'))
+temp_ds = temp_ds.map(lambda x: (x, 0))
+
+temp2_ds = tf.data.Dataset.list_files(os.path.join('./dataset/my_cat_dog', 'val', 'dog', '*.jpg'))
+temp2_ds = temp2_ds.map(lambda x: (x, 1))
+
 val_ds = temp_ds.concatenate(temp2_ds)
-val_ds = val_ds.map(load, num_parallel_calls=tf.data.experimental.AUTOTUNE)\
-               .filter(filter_invalid_images)\
+
+val_ds = val_ds.map(load_image_val, num_parallel_calls=16)\
                .batch(20)\
                .repeat()
 
+
+# Carrega os dados de teste
+temp_ds = tf.data.Dataset.list_files(os.path.join('./dataset/my_cat_dog', 'test', 'cat', '*.jpg'))
+temp_ds = temp_ds.map(lambda x: (x, 0))
+
+temp2_ds = tf.data.Dataset.list_files(os.path.join('./dataset/my_cat_dog', 'test', 'dog', '*.jpg'))
+temp2_ds = temp2_ds.map(lambda x: (x, 1))
+
 test_ds = temp_ds.concatenate(temp2_ds)
-test_ds = test_ds.map(load, num_parallel_calls=tf.data.experimental.AUTOTUNE)\
-                 .filter(filter_invalid_images)\
-                 .batch(20)\
-                 .repeat()
+
+test_ds = test_ds.map(load_image_val, num_parallel_calls=16)\
+                .shuffle(buffer_size)\
+               .batch(20)\
+               .repeat()
+
+train_len = len(glob(os.path.join('./dataset/my_cat_dog', 'train', 'cat', '*.jpg'))) * 2
+val_len = len(glob(os.path.join('./datasets/my_cat_dog', 'val', 'cat', '*.jpg'))) * 2
+test_len = len(glob(os.path.join('./dataset/my_cat_dog', 'test', 'cat', '*.jpg'))) * 2
+
+print(train_len, val_len, test_len)
+
+for images, labels in train_ds.take(1):
+    fig, ax = plt.subplots(1, 10, figsize=(20, 6))
+    for j in range(10):
+        image = images[j].numpy()
+        image = image / np.amax(image)
+        image = np.clip(image, 0, 1)
+        ax[j].imshow(image)
+        ax[j].set_title(labels[j].numpy())
+plt.show()
 
 
 class Conv(tf.keras.Model):
@@ -128,7 +154,6 @@ class Conv(tf.keras.Model):
     
 model = tf.keras.Sequential(name='Cat_Dog_CNN')
 
-model.add(tf.keras.layers.InputLayer(input_shape=(150, 150, 3)))
 model.add(Conv(filters=32, kernel_size=(3, 3)))
 model.add(Conv(filters=64, kernel_size=(3, 3)))
 model.add(Conv(filters=128, kernel_size=(3, 3)))
@@ -149,18 +174,21 @@ cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
 model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),
               loss=tf.keras.losses.SparseCategoricalCrossentropy(),
               metrics=['accuracy'])
+model.summary()
 
+train_len = len(glob(os.path.join('../datasets/my_cat_dog', 'train', 'cat', '*.jpg'))) * 2
+val_len = len(glob(os.path.join('../datasets/my_cat_dog', 'val', 'cat', '*.jpg'))) * 2
+test_len = len(glob(os.path.join('../datasets/my_cat_dog', 'test', 'cat', '*.jpg'))) * 2
 
-train_len = train_size * 2
-val_len = val_size * 2
-test_len = test_size * 2
+print(train_len, val_len, test_len)
 
-model.fit(train_ds, 
-          steps_per_epoch=int(train_len / 20),
+model.fit(train_ds, steps_per_epoch=train_len // 20,
           validation_data=val_ds,
-          validation_steps=int(val_len / 20),
+          validation_steps=val_len//20,
           epochs=30,
-          callbacks=[cp_callback])
+          callbacks=[cp_callback]
+          )
 
-model.evaluate(test_ds, steps=int(test_len / 20))
-model.save('cat_dog_cnn_model.keras')
+model.evaluate(test_ds, steps=test_len//20)
+
+model.save('cat_dog_cnn.keras')
