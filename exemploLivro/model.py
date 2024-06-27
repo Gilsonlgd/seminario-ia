@@ -45,6 +45,7 @@ metrics=['accuracy'])
 # Treina o modelo
 checkpointer = ModelCheckpoint(filepath='model.weights.best.keras', verbose=1,
 save_best_only=True)
+
 model.fit(x_train, y_train, batch_size=32, epochs=100,
 validation_data=(x_valid, y_valid), callbacks=[checkpointer],
 verbose=2, shuffle=True)
